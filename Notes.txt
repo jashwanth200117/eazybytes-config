@@ -1,0 +1,93 @@
+GENERATING A EUREKA SERVER APPLICATION:-
+
+1. Now to register our microservices with the eureka server.
+2. Create a new eureka server application by adding dependencies like eureka server , actuator and config client to connect to the config server.
+3. Add @EnableEurekaServer configuration above its main application file.
+4. In its application.yml file add config server configurations , actuator configurations like:-
+spring:
+  application:
+    name: "eurekaserver"					//make sure that in your config server file also the same name is used.
+  config:
+    import: "optional:configserver:http://localhost:8071/"	//url of config sever
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"						//for other actuator endpoints other than /health and /info
+  health:
+    readiness-state:
+      enabled: true
+    liveness-state:
+      enabled: true
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+{
+When using Kubernetes as our orchestration platform, the kubelet in each node is responsible for keeping the pods in that node healthy.
+
+For instance, sometimes our apps may need a little bit of time before being able to accept requests. The kubelet can make sure that the application receives requests only when it’s ready. Also, if the main process of a pod crashes for any reason, the kubelet will restart the container.
+
+In order to fulfill these responsibilities, Kubernetes has two probes: liveness probes and readiness probes.
+
+The kubelet will use the readiness probe to determine when the application is ready to accept requests. More specifically, a pod is ready when all of its containers are ready.
+
+Similarly, the kubelet can check if a pod is still alive through liveness probes. Basically, the liveness probe helps the kubelet know when it should restart a container.
+}
+
+5. Add eurekaserver.yml in  out config server github repo.
+server:
+  port: 8070
+
+eureka:
+  instance:
+    hostname: localhost
+  client:
+    fetchRegistry: false
+    registerWithEureka: false
+    serviceUrl:
+      defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka/
+
+6. Run config server application and then eureka server application and go to localhost:8070 where you should see the default url of the eureka server.
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+CONNECTING OUR MICROSERVICES WITH THE EUREKA SERVER APPLICATION:-
+
+1. First add Eureka Discovery client dependency to the pom.xml of any microservice.
+2. Add the following configurations in the application.yml file of the microservice :-
+
+management:									 	
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:									//Whenever the microservice is shutting down it will deregister from the eureka server 
+    shutdown:
+      access: unrestricted
+  info:										//To enable evironment info related information
+    env:
+      enabled: true
+
+eureka:										// To connect to the eureka server with proper ip address and to the right url
+  instance:
+    preferIpAddress: true
+  client:
+    fetchRegistry: true
+    registerWithEureka: true
+    serviceUrl:
+      defaultZone: http://localhost:8070/eureka/ 
+
+info:										// The info that will be visible through the eureka servers UI
+  app:
+    name: "accounts"
+    description: "Eazy Bank Accounts Application"
+    version: "1.0.0"
+
+3. Now start the microservice and verify its registration in the eureka server UI.
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+1. Now usually in production environments in companies it is not recommended to shutdown any of our application directly using the ide itself what we can do is post using http://localhost:8080/actuator/shutdown to shutdown any of our application.
