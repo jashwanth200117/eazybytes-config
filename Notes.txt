@@ -1,3 +1,70 @@
+Using MySQL DATABASE in our microservice application.
+
+Till now we were using h2 database but now to shift our application to MySQL database we can either install MySQL in our local system and connect it to our application, or we can use the MySQL container using docker and connect it to our application.
+
+Step to connect our application to MySQL Docker container:-
+1. First create separate MySQL containers for each microservice using the below command:
+	docker run -p 3306:3306 --name accountsdb -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=accountsdb -d MySQL
+   Where the first "accountsdb" is the container name where the second "accountsdb" is the table name that should be created inside our MySQL and we are using -d to run the container in detached mode.
+
+2. Now since we don't have a workbench to actually view our database we can use an SQL client like SQLELECRON that can be used to connect to our localhost database using the ports that we have mentioned in our MySQL microservice containers.
+
+3. But in an organizations application the MySQL will be deployed by the infra team and we will just use their database.
+
+4. Now for other microservice we create containers using the below command 
+	docker run -p 3307:3306 --name loansdb -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=loansdb -d MySQL
+   We need to change the port only in the first place because the first port is for our local connection so it has to be different but the other port can be the same since each containers runs on separate environment and its port doesn't matter.
+
+
+Now to connect our microservices to this database we need to do certain changes like:-
+1. Remove the h2 related dependency and add the MySQL dependency into all the microservices.
+2. In the application.yml of each microservice remove all the h2 related configurations add the url , username and password of our MySQL database like
+	datasource:
+	 url: jdbc:mysql://localhost:3306/accountsdb
+	 username: root
+	 password: root
+3. But in actual production environment in a company the credentials will not be exposed like this in our code it will most likely be placed in externalized approaches like environment variables / cli arguments.
+4. Make sure there are sql commands in schema.sql file that is used to create all the tables and its columns.
+5. Also to make sure that your application always used this file we add the below command in our application.yml file
+	sql:
+	 init:
+	  mode:always
+
+
+But this is the process if want to connect to the MySQL server using the local system that when our microservices are running in our local system but if we want our microservice containers to connect with the MySQL database we need to do certain changes like:-
+ 
+1. First go to the docker compose file and create 3 new services for the 3 new databases for your microservices and also make sure that all these containers are on the same network so that they can communicate with each other.
+
+2. Make sure to link these db containers to the microservice containers and also provide the username and password as well AND also add the depends_on command to make sure that the microservice containers should be created only when the db containers are in healthy state:-
+	account:
+	 environment:
+	  SPRING_DATASOURCE_URL:"jdbc:mqsql://accountsdb:3306/accountsdb"
+	  SPRING_DATASOURCE_USERNAME:root
+	  SPRING_DATASOURCE_PASSWORD:root
+
+3. Now for other microservices also we have to provide the port as 3306 in the SPRING_DATASOURCE_URL because all the containers are running inside the same network in our system but we provide the different ports in the db service code like below:-
+	loansdb:
+	 ports:
+	  3307:3306
+
+4. But what if in an organization they are not using containers for connecting to sql/database rather they have their own db or any other method then we need to remove all the database related services from the dockercompose file and then inside the microservice SPRING_DATASOURCE_URL configuration we should provide the actual url of the database.
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Using Service Discovery and Service Registration in our microservice application.
+
+1. Now if any client wants to call any of our microservice they cannot call the url's directly.
+
+2. We need to store all the microservices inside a single network that acts a firewall for external traffic and all the calls should pass through an API gateway that acts like a single entry point because a single entry points helps in maintaining the security , auditing and logging.
+
+3. Now before that what if one microservice wants to communicate with another microservice inside the same network. Then we can directly call that microservice's url in the ip/port that it is hosted but this will work in a monolithic application only because in a microservice architecture each microservice may have a lot of instances with different port numbers and we will not know which instance of a microservice to call or which port it is hosted in so it will become a very tedious process.
+
+4. We can use DNS as well where all the instances of same microservice can be given same DNS but again each microservice will have different dns , ip's and becomes tedious to map them to a single dns.
+
+5. We can not use a traditional load balancer where we maintain a routing table and whenever a new instance of a microservice is generated or removed we need to manually update that inside our routing table for future usage of that microservice this becomes very tedious in a containerized microservice architecture as there can be more than 1000 microservices and each of them with at least 5 instances as well.
+
+-----------------------------------------------------	----------------------------------------------------------------------	-----------------------------------------------------------	--------------------------------------------
+
 GENERATING A EUREKA SERVER APPLICATION:-
 
 1. Now to register our microservices with the eureka server.
@@ -91,3 +158,10 @@ info:										// The info that will be visible through the eureka servers UI
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 1. Now usually in production environments in companies it is not recommended to shutdown any of our application directly using the ide itself what we can do is post using http://localhost:8080/actuator/shutdown to shutdown any of our application.
+
+2. Also our microservices sends their heartbeat every 30 seconds to the eureka server to let it know that the service is running. In-fact we can this if we shut down the eureka server then we will get an exception in the logs of our microservice.
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+NOW FOR COMMUNICATING BETWEEN THE MICROSERVICES THAT IS FOR INTER SERVICE COMMUNICATION:-
+
